@@ -1,0 +1,50 @@
+- name: deploy static 
+  hosts: '{{ host }}'
+  remote_user: root
+  gather_facts: true
+  vars:
+    src_dir: '{{ src_dir }}'
+    dest_dir: '{{ dest_dir }}'
+
+  tasks:
+  #####判断相关的目录是否存在,不存在则创建
+    - name: create directory if don't exist
+      block:
+      - name: "Checking directory"
+        stat:
+          path: "{{item}}"
+        with_items:
+          - ["/data/static/{{ dest_dir }}"]
+        register: folder_stats
+            
+      - name: "creat multiple directory"
+        file:
+          path: "{{item.item}}"
+          state: directory
+          mode: 0755
+          group: root
+          owner: root
+        with_items:
+         - "{{folder_stats.results}}"
+        when: item.stat.exists == false
+  ####同步静态文件
+    - name: sync file
+      synchronize: 
+        src: "{{ src_dir }}"
+        dest: /data/static/{{ dest_dir }}
+        rsync_opts:
+          - "--exclude=.git"
+          - "--exclude=.idea"
+          - "--exclude=.gitignore"
+      notify:
+       - "reload Nginx on cenots6"
+       - "reload Nginx on cenots7"
+  ####重启nginx服务
+  handlers:
+    - name: "reload Nginx on cenots6"
+      command: service nginx restart
+      when: ansible_distribution_major_version == '6'
+      
+    - name: "reload Nginx on cenots7"
+      shell: pkill nginx && service nginx start
+      when: ansible_distribution_major_version == '7'

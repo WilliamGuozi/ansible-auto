@@ -1,0 +1,36 @@
+- name: nginx config file
+  hosts: '{{ host }}'
+  remote_user: root
+  vars:
+    src_dir: '{{ src_dir }}'
+
+  tasks:
+   - name: sync nginx file
+     synchronize: 
+       src: "{{ src_dir }}"
+       dest: /etc/nginx/conf.d
+       rsync_opts:
+         - "--exclude=.git"
+         - "--exclude=.idea"
+         - "--exclude=.gitignore"
+         
+   - command: /usr/sbin/nginx -t
+     register: result
+     ignore_errors: yes
+     
+   - name: error message
+     debug: msg="{{result.stderr_lines}}"
+     
+   - command: /usr/sbin/nginx -t
+     notify:
+      - "reload Nginx on cenots6"
+      - "reload Nginx on cenots7"
+      
+  handlers:
+   - name: "reload Nginx on cenots6"
+     command: service nginx restart
+     when: ansible_distribution_major_version == '6'
+     
+   - name: "reload Nginx on cenots7"
+     shell: pkill nginx && service nginx start
+     when: ansible_distribution_major_version == '7'

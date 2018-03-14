@@ -1,0 +1,9 @@
+---
+- hosts: '{{ host }}'
+  remote_user: root
+  gather_facts: false
+  tasks:
+    - name: "init system"
+      block:
+      - name: "init timezone"
+        file: src=/usr/share/zoneinfo/Asia/Shanghai dest=/etc/localtime state=link

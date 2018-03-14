@@ -1,0 +1,37 @@
+---
+- hosts: '{{ host }}'
+  remote_user: root
+  gather_facts: false
+  vars:
+    java_version: 1.8.0_141
+    java_version_source: jdk-8u141-linux-x64.tar.gz
+  tasks:
+        #####安装jdk
+      - name: check jdk version exist
+        shell: javah -version | awk '{print $2}' | sed 's/\"//g'
+        register: resultt
+      - name: stop if new_version_jdk is exists
+        fail: msg="The lastest version of jdk is installed"
+        when: resultt.stdout == "{{ java_version }}"
+
+      - name: Download jdk file
+        get_url: url=http://mirrors.linuxeye.com/jdk/{{ java_version_source }} dest=/tmp/{{ java_version_source }}
+      - name: "Checking directory"
+        file: path=/usr/local/jdk{{ java_version }} state=directory
+
+      - name: Extract archive
+        unarchive: src=/tmp/{{ java_version_source }} dest=/usr/local/ copy=no
+      - name: java_profile config
+        shell: /bin/echo {{ item }} >> /etc/profile && source /etc/profile && ls -al /tmp
+        with_items:
+          - export JAVA_HOME=/usr/local/jdk{{ java_version }}
+          - export PATH=\$JAVA_HOME/bin:\$PATH
+      - name: create java link
+        file: src=/usr/local/jdk{{ java_version }}/ dest=/usr/local/jdk state=link        
+
+
+
+
+
+
+

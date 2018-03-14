@@ -1,0 +1,19 @@
+---
+- hosts: '{{ host }}'
+  remote_user: root
+  gather_facts: false
+  vars:
+    src_dir: '{{ src_dir }}'
+
+  tasks:
+    - name: sync ansible file
+      synchronize: 
+        src: "{{ src_dir }}" 
+        dest: /etc/ansible/
+        rsync_opts:
+         - "--exclude=.git"
+         - "--exclude=.idea"
+         - "--exclude=.gitignore"
+         
+    - name: change deploysshkey file
+      file: path=/etc/ansible/key/deploysshkey mode=0600 state=file

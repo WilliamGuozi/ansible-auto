@@ -1,0 +1,73 @@
+---
+- hosts: '{{ host }}'
+  remote_user: root
+  gather_facts: false
+  vars:
+    java_version: 1.8.0_141
+    java_version_source: jdk-8u141-linux-x64.tar.gz
+  tasks:
+    ######上传管理员sshkey公钥
+    - name: "upload keys"
+      authorized_key:
+        user: root
+        key: "{{ lookup('file', '/etc/ansible/key/admin_keys') }}"
+        state: present
+        exclusive: no
+
+    #####初始化系统环境    
+    - name: "init system"
+      block:
+      #####停用selinux和更改时区到UTC
+      - name: "disable selinux"
+        selinux:
+          policy: targeted
+          state: permissive
+
+      - name: "init timezone"
+        file: src=/usr/share/zoneinfo/UTC dest=/etc/localtime state=link
+
+      - name: "ulimit configure temporary"
+        shell: ulimit -SHn 65536
+      
+      - name: "modify configure of ulimit for ever"
+        copy: src=/etc/ansible/file/limits.conf dest=/etc/security/ owner=root mode=644
+
+      #####关闭邮件提醒
+      - name: "shutdown mail notify"
+        shell: /bin/echo "unset MAILCHECK" >> /etc/profile && source /etc/profile
+        tags: 
+        - mailshut
+
+      #####安装软件
+      - name: "setup epel-release"
+        yum: name="epel-release" state=latest
+
+      - name: "install software"
+        yum: name="{{item}}" state=latest
+        with_items:
+          - ["iotop","telnet","wget","vim","htop","docker","rsync","lrzsz","psmisc","net-tools","curl","jq","nginx"]
+
+      - name: "install docker"
+        service: name=docker state=started enabled=true
+
+      #####安装jdk
+ #      - name: check jdk version exist
+ #        shell: javah -version&&javah -version | awk '{print $2}' | sed 's/\"//g'
+
+      - name: Download jdk file
+        get_url: url=http://mirrors.linuxeye.com/jdk/{{ java_version_source }} dest=/tmp/{{ java_version_source }}
+
+      - name: "Checking directory"
+        file: path=/usr/local/jdk{{ java_version }} state=directory
+
+      - name: Extract archive
+        unarchive: src=/tmp/{{ java_version_source }} dest=/usr/local/ copy=no
+
+      - name: java_profile config
+        shell: /bin/echo {{ item }} >> /etc/profile && source /etc/profile && ls -al /tmp
+        with_items:
+          - export JAVA_HOME=/usr/local/jdk{{ java_version }}
+          - export PATH=\$JAVA_HOME/bin:\$PATH
+
+      - name: create java link
+        file: src=/usr/local/jdk{{ java_version }}/ dest=/usr/local/jdk state=link

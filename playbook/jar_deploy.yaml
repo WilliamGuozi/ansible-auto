@@ -1,0 +1,111 @@
+---
+- hosts: '{{ host }}'
+  remote_user: admin
+  gather_facts: false
+  vars:
+        jar_file: '{{ jar_file }}'
+        jar_file_name: '{{ jar_file_name }}'
+        md5_jar: '{{ md5_jar }}'
+        config_file: '{{ config_file }}'
+        config_file_name: '{{ config_file_name }}'
+        app_name: '{{ app_name }}'
+        start_bash: '{{ start_bash }}'
+        stop_bash: '{{ stop_bash }}'
+        monitor_bash: '{{ monitor_bash }}'    
+  tasks:
+#####判断相关的目录是否存在,不存在则创建
+    - name: create directory if don't exist
+      block:
+      - name: "Checking directory"
+        stat:
+          path: "{{item}}"
+        with_items:
+          - ["/data/backup","/data/oom","/data/server/{{ app_name }}"]
+        register: folder_stats
+            
+      - name: "creat multiple directory"
+        file:
+          path: "{{item.item}}"
+          state: directory
+          mode: 0755
+          group: root
+          owner: root
+        with_items:
+         - "{{folder_stats.results}}"
+        when: item.stat.exists == false
+            
+#####复制相关的运维脚本
+    - name: "copy shell bash"
+      copy: 
+        src: "{{item}}"
+        dest: /data/server/{{ app_name }}
+        mode: 0755
+        group: root
+        owner: root
+      with_items:
+        - ["{{ start_bash }}"]
+        - ["{{ stop_bash }}"]
+        - ["{{ monitor_bash }}"]
+
+#####设置monitor计划任务
+     - name: setup crond job
+       cron: name=" {{ app_name }} monitor" job="/bin/bash /data/server/{{ app_name }}/monitor.sh" minute=*/1 state=present
+
+#####不管临时配置文件是否存在，都直接删除
+    - name: delete tmp config file
+      file: "path=/tmp/{{ app_name }}_{{ config_file_name }} state=absent"
+
+#####判断jar文件的md5值,是否相等.相等则继续部署,否则停止部署
+    - name: check md5
+      block:
+      - name: local jar md5
+        debug: msg={{ md5_jar }}
+            
+      - name: sync jar file
+        copy: src={{ jar_file }} dest=/tmp force=yes
+            
+      - name: sync config file
+        copy: src={{ config_file }} dest=/tmp/{{ app_name }}_{{ config_file_name }} force=yes
+            
+      - name: new jar md5sum
+        shell: "md5sum /tmp/{{ jar_file_name }} |awk '{print $1}'"
+        register: resultt
+            
+      - name: remote jar md5
+        debug: msg={{ resultt.stdout }}
+            
+      - name: Stop building if you don't have the same md5
+        fail: msg="md5 is difference stop build"
+        when: resultt.stdout != "{{ md5_jar }}"
+            
+#####停止原来的服务,备份对应的目录,然后删除对应的日志文件
+    - name: backup and delete {{ app_name }}
+      block:
+      - name: stop {{ app_name }} service
+        shell: "sh /data/server/{{ app_name }}/stop.sh"
+            
+      - name: backup old {{ app_name }} directory
+        shell: 'cp -a /data/server/{{ app_name }}/ /data/backup/{{ app_name }}_`date +"%Y%m%d_%H%M%S"`'
+            
+      - name: tar backup old {{ app_name }} directory
+        shell: 'tar -zcvf /data/backup/{{ app_name }}_`date +"%Y%m%d_%H%M%S"`.tar.gz -C /data/server/ {{ app_name }}'
+            
+      - name: delete old {{ app_name }} logs file
+        file: "path=/data/server/{{ app_name }}/logs state=absent"
+            
+
+#####部署相对应的服务,但是会做相关的判断
+      always:
+        - name: copy new {{ app_name }} jar file
+          shell: 'cp /tmp/{{ jar_file_name }} /data/server/{{ app_name }}/'
+          register: result
+            
+        - name: copy new {{ app_name }} config file
+          shell: 'cp /tmp/{{ app_name }}_{{ config_file_name }} /data/server/{{ app_name }}/{{ config_file_name }}'
+            
+        - name: start {{ app_name }} service
+          shell: cd /data/server/{{ app_name }} && sh /data/server/{{ app_name }}/start.sh
+          register: result4
+            
+        - name: start {{ app_name }} app message
+          debug: msg="{{ result4.stdout }}"

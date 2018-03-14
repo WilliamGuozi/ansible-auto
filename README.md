@@ -1,2 +1,2 @@
-# ansible-
-运维工作中使用的playbook，脚本等
+# ansible-auto
+运维工作中使用的ansible playbook，自动化脚本等

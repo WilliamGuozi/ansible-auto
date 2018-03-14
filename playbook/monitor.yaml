@@ -1,0 +1,13 @@
+---
+- hosts: '{{ host }}'
+  remote_user: root
+  gather_facts: false
+  vars:
+        app_name: '{{ app_name }}'
+  tasks:
+#####上传monitor文件
+    - name: upload file of monitor
+      copy: src=/etc/ansible/monitor.sh dest=/root/ mode=755 owner=root group=root
+####设置计划任务   
+    - name: setup crond job
+      cron: name=" {{ app_name }} monitor" job="/bin/bash /root/monitor.sh" minute=5 state=present

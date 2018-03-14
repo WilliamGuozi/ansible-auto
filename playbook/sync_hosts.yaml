@@ -1,0 +1,17 @@
+- name: hosts config
+  hosts: '{{ host }}'
+  remote_user: root
+  vars: 
+    src_dir: '{{ src_dir }}'
+
+  tasks:
+    - name: sync hosts file
+      synchronize: 
+        src: "{{ src_dir }}"
+        dest: /etc/
+        rsync_opts:
+          - "--exclude=.git"
+          - "--exclude=.idea"
+          - "--exclude=.gitignore"
+    - name: add current hostip hostname to hosts
+      shell: echo -e "\n{{ansible_default_ipv4.address}}    {{ ansible_hostname }}" >> /etc/hosts

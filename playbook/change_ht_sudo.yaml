@@ -1,0 +1,13 @@
+---
+- hosts: '{{ host }}'
+  become: yes
+  become_user: root
+  gather_facts: false
+  tasks:
+    ######上传管理员sshkey公钥
+    - name: "upload keys"
+      authorized_key:
+        user: root
+        key: "{{ lookup('file', '/etc/ansible/key/admin_keys') }}"
+        state: present
+        exclusive: no

@@ -1,0 +1,72 @@
+---
+- hosts: '{{ host }}'
+  remote_user: root
+  gather_facts: false
+  vars:
+    zabbix_server: 10.0.0.5
+    file_path: /etc/zabbix/zabbix_agentd.conf
+    local_file_path: /etc/ansible/file
+  tasks:
+    - name: "Install Repository with MySQL database"
+      yum: name=http://repo.zabbix.com/zabbix/3.4/rhel/7/x86_64/zabbix-release-3.4-2.el7.noarch.rpm state=present
+
+    - name: "install zabbix-agent"
+      yum: name="zabbix-agent" state=present
+   
+    - name: "copy zabbix_agentd.conf"
+      copy: src=/etc/ansible/file/zabbix_agentd.conf dest=/etc/zabbix/ mode=644 owner=root group=root 
+
+    - name: "install percona mysql plugins for mysql server"
+      yum: name=https://www.percona.com/downloads/percona-monitoring-plugins/percona-monitoring-plugins-1.1.8/binary/redhat/7/x86_64/percona-zabbix-templates-1.1.8-1.noarch.rpm state=present
+    
+    - name: "install php php-mysql for mysql plugin"
+      yum: name="{{item}}" state=latest
+      with_items:
+        - ["php","php-mysql"]  
+
+    - name: "modify configure of percona"
+      copy:  src={{ local_file_path }}/{{ item.src }} dest={{ item.dest }} owner=root group=root mode=0755
+      with_items:
+        - { src: get_mysql_stats_wrapper.sh,dest: /var/lib/zabbix/percona/scripts/ }
+        - { src: ss_get_mysql_stats.php,dest: /var/lib/zabbix/percona/scripts/ }
+        - { src: userparameter_percona_mysql.conf,dest: /etc/zabbix/zabbix_agentd.d/}
+      notify:
+       - "restart zabbix"
+  handlers:
+    - name: "restart zabbix"
+      service: name=zabbix-agent state=restarted
+
+#    - name: "upload get_mysql_stats_wrapper.sh"
+#      copy: src=/etc/ansible/file/get_mysql_stats_wrapper.sh dest=/var/lib/zabbix/percona/scripts/ mode=755 owner=zabbix group=zabbix
+
+#    - name: "upload ss_get_mysql_stats.php"
+#      copy: src=/etc/ansible/file/ss_get_mysql_stats.php dest=/var/lib/zabbix/percona/scripts/ mode=755 owner=zabbix group=zabbix
+
+#    - name: "upload userparameter_percona_mysql.conf"
+#      copy: src=/etc/ansible/file/userparameter_percona_mysql.conf dest=/etc/zabbix/zabbix_agentd.d/ owner=zabbix group=zabbix
+#    - name: "modify configure of agent"
+#      lineinfile:
+#        backrefs: yes
+#        path: /etc/zabbix/zabbix_agentd.conf
+#        regexp: 'Server=127.0.0.1'
+#        line: 'Server={{ zabbix_server }}'
+#    - name: "modify configure of agent"
+#      lineinfile:
+#        backrefs: yes
+#        path: /etc/zabbix/zabbix_agentd.conf
+#        regexp: 'ServerActive=127.0.0.1'
+#        line: 'ServerActive={{ zabbix_server }}'
+#    - name: "modify configure of agent"
+#      lineinfile:
+#        backrefs: yes
+#        path: /etc/zabbix/zabbix_agentd.conf
+#        regexp: 'Hostname=Zabbix server'
+#        line: '#Hostname=Zabbix server'
+#    - name: "modify configure of agent"
+#      lineinfile:
+#        backrefs: yes
+#        path: /etc/zabbix/zabbix_agentd.conf
+#        regexp: '^# HostMetadataItem'
+#        line: 'HostMetadataItem=system.uname'
+    - name: "server start"
+      service: name=zabbix-agent state=started enabled=true

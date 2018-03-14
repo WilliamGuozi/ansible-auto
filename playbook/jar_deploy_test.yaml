@@ -1,0 +1,83 @@
+---
+- hosts: '{{ host }}'
+  remote_user: admin
+  gather_facts: false
+  vars:
+        jar_file: '{{ jar_file }}'
+        jar_file_name: '{{ jar_file_name }}'
+        md5_jar: '{{ md5_jar }}'
+        config_file: '{{ config_file }}'
+        config_file_name: '{{ config_file_name }}'
+        app_name: '{{ app_name }}'
+        start_bash: '{{ start_bash }}'
+        stop_bash: '{{ stop_bash }}'
+        monitor_bash: '{{ monitor_bash }}'
+            
+  tasks:
+#####判断相关的目录是否存在,不存在则创建
+    - name: create directory
+      block:
+      - name: "creat multiple directory"
+        file:
+          path: "{{item}}"
+          state: directory
+          mode: 0755
+          group: root
+          owner: root
+        with_items:
+          - ["/data/server/{{ app_name }}"]
+            
+#####复制相关的运维脚本
+    - name: "copy shell bash"
+      copy: 
+        src: "{{item}}"
+        dest: /data/server/{{ app_name }}
+        mode: 0755
+        group: root
+        owner: root
+      with_items:
+        - ["{{ start_bash }}"]
+        - ["{{ stop_bash }}"]
+        - ["{{ monitor_bash }}"]
+
+#####设置monitor计划任务
+    - name: setup crond job
+      cron: name=" {{ app_name }} monitor" job="/bin/bash /data/server/{{ app_name }}/monitor.sh" minute=*/1 state=present
+
+#####不管临时配置文件是否存在，都直接删除
+    - name: delete tmp config file
+      file: "path=/tmp/{{ app_name }}_{{ config_file_name }} state=absent"
+
+
+#####同步jar和config文件
+    - name: check md5
+      block:
+      - name: sync jar file
+        copy: src={{ jar_file }} dest=/tmp force=yes
+            
+      - name: sync config file
+        copy: src={{ config_file }} dest=/tmp/{{ app_name }}_{{ config_file_name }} force=yes
+            
+#####停止原来的服务,然后删除对应的日志文件
+    - name: stop service and delete {{ app_name }} logs
+      block:
+      - name: stop {{ app_name }} service
+        shell: "sh /data/server/{{ app_name }}/stop.sh"
+            
+      - name: delete old {{ app_name }} logs file
+        file: "path=/data/server/{{ app_name }}/logs state=absent"
+#####部署相对应的服务,但是会做相关的判断
+      always:
+        - name: copy new {{ app_name }} jar file
+          shell: 'cp /tmp/{{ jar_file_name }} /data/server/{{ app_name }}/'
+          register: result
+            
+        - name: copy new {{ app_name }} config file
+          shell: 'yes|cp /tmp/{{ app_name }}_{{ config_file_name }} /data/server/{{ app_name }}/{{ config_file_name }}'
+            
+        - name: start {{ app_name }} service
+          shell: cd /data/server/{{ app_name }} && sh /data/server/{{ app_name }}/start.sh
+          register: result4
+            
+        - name: start {{ app_name }} app message
+          debug: msg="{{ result4.stdout }}"
