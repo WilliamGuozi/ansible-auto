@@ -1,4 +1,5 @@
 - name: nginx config file
+  gather_facts: false
   hosts: '{{ host }}'
   remote_user: root
   vars:
@@ -23,14 +24,8 @@
      
    - command: /usr/sbin/nginx -t
      notify:
-      - "reload Nginx on cenots6"
-      - "reload Nginx on cenots7"
+      - "reload Nginx"
       
   handlers:
-   - name: "reload Nginx on cenots6"
-     command: service nginx restart
-     when: ansible_distribution_major_version == '6'
-     
-   - name: "reload Nginx on cenots7"
-     shell: pkill nginx && service nginx start
-     when: ansible_distribution_major_version == '7'
+   - name: "reload Nginx"
+     shell: "pkill nginx;nginx"

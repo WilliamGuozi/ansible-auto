@@ -1,0 +1,26 @@
+---
+- hosts: '{{ host }}'
+  remote_user: root
+  gather_facts: false
+  vars:
+    local_file_path: /etc/ansible/file
+  tasks:
+    - name: "Install mutt msmtp"
+      yum: name="{{item}}" state=latest
+      with_items:
+        - ["mutt","msmtp"]
+
+    - name: "upload backmysql.conf backmysql.sh Muttrc msmtprc"
+      copy:  src={{ local_file_path }}/{{ item.src }} dest={{ item.dest }} owner=root group=root mode=755
+      with_items:
+        - { src: backupmysql.conf,dest: /data/scripts/ }
+        - { src: backupmysql.sh,dest: /data/scripts/ }
+        - { src: Muttrc.local,dest: /etc/ }
+        - { src: msmtprc,dest: /etc/ }
+
+########设置计划任务
+    - name: "setup crond backupmysql job"
+      cron: name="mysqldump job everyday" job="/bin/bash /data/scripts/backupmysql.sh" minute=30 hour=9 state=present
+    
+    - name: "rsync binlog crond job"
+      cron: name="binlog rsync job" job="rsync -avz /data/mysqldata/mysql-bin.* /databackup/mysqldata/binlog/" minute=30 hour=10 state=present user=root

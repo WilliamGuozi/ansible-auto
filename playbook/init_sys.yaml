@@ -27,7 +27,7 @@
         file: src=/usr/share/zoneinfo/UTC dest=/etc/localtime state=link
 
       - name: "ulimit configure temporary"
-        shell: ulimit -SHn 65536
+        shell: ulimit -SHn 655360
       
       - name: "modify configure of ulimit for ever"
         copy: src=/etc/ansible/file/limits.conf dest=/etc/security/ owner=root mode=644
@@ -38,36 +38,51 @@
         tags: 
         - mailshut
 
-      #####安装软件
+      #####关闭和禁用firewalld服务
+      - name: "shutdown firewalld service"
+        systemd:
+          name: firewalld
+          state: stopped
+
+      - name: "disable firewalld service"
+        systemd:
+          name: firewalld
+          enabled: no
+
+      #####安装相关软件
       - name: "setup epel-release"
         yum: name="epel-release" state=latest
 
       - name: "install software"
         yum: name="{{item}}" state=latest
         with_items:
-          - ["iotop","telnet","wget","vim","htop","docker","rsync","lrzsz","psmisc","net-tools","curl","jq","nginx"]
+          - ["gcc","gcc-c++","gdb","iotop","telnet","mutt","msmtp","wget","vim","htop","docker","rsync","lrzsz","psmisc","net-tools","curl","jq","lsof","nginx"]
 
       - name: "install docker"
         service: name=docker state=started enabled=true
+
 
       #####安装jdk
  #      - name: check jdk version exist
  #        shell: javah -version&&javah -version | awk '{print $2}' | sed 's/\"//g'
 
-      - name: Download jdk file
+      - name: "Download jdk file"
         get_url: url=http://mirrors.linuxeye.com/jdk/{{ java_version_source }} dest=/tmp/{{ java_version_source }}
 
       - name: "Checking directory"
         file: path=/usr/local/jdk{{ java_version }} state=directory
 
-      - name: Extract archive
+      - name: "Extract archive"
         unarchive: src=/tmp/{{ java_version_source }} dest=/usr/local/ copy=no
 
-      - name: java_profile config
+      - name: "java_profile config"
         shell: /bin/echo {{ item }} >> /etc/profile && source /etc/profile && ls -al /tmp
         with_items:
           - export JAVA_HOME=/usr/local/jdk{{ java_version }}
           - export PATH=\$JAVA_HOME/bin:\$PATH
 
-      - name: create java link
+      - name: "create java link"
         file: src=/usr/local/jdk{{ java_version }}/ dest=/usr/local/jdk state=link
+
+      - name: "restart OS"
+        command: shutdown -r now

@@ -4,7 +4,6 @@
   remote_user: root
   vars:
     src_dir: '{{ src_dir }}'
-    src_404_dir: '{{ src_404_dir }}'
     dest_dir: '{{ dest_dir }}'
 
   tasks:
@@ -15,7 +14,7 @@
         stat:
           path: "{{item}}"
         with_items:
-          - ["/data/static/{{ dest_dir }}"]
+          - ["/use/share/nginx/{{ dest_dir }}"]
         register: folder_stats
             
       - name: "creat multiple directory"
@@ -31,19 +30,19 @@
   ####同步静态文件
     - name: sync file
       synchronize: 
-#        src: "{{ src_dir }}"
         src: "{{item}}"
-        dest: /data/static/{{ dest_dir }}
+        dest: /usr/share/nginx/{{ dest_dir }}
         rsync_opts:
           - "--exclude=.git"
           - "--exclude=.idea"
           - "--exclude=.gitignore"
       with_items:
         - ["{{ src_dir }}"]
-        - ["{{ src_404_dir}}"]
 #      notify:
 #       - "reload Nginx"
   ####重启nginx服务
+
 #  handlers:
 #    - name: "reload Nginx"
+
 #      service: name=nginx state=reloaded
